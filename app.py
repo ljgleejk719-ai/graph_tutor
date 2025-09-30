@@ -1,5 +1,5 @@
 import streamlit as st
-from google import generativeai as genai
+import google.generativeai as genai
 import os
 from datetime import datetime, timedelta
 import random
