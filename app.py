@@ -16,8 +16,6 @@ MAX_DAILY_REQUESTS = 10
 # -----------------------------------------------------
 # 1. API 설정 및 모델 초기화 (사용자 키 직접 적용)
 # -----------------------------------------------------
-# 사용자 요청에 따라 API 키를 코드에 직접 설정합니다.
-# 참고: 이 방식은 키가 코드에 노출되므로 보안상 권장되지 않습니다.
 API_KEY = "AIzaSyAU1iwa-OFdgFyiookp8Rcwez6rlNXajm4"
 
 if not API_KEY:
@@ -103,27 +101,27 @@ except FileNotFoundError:
     GRAPH_BG_IMAGE = None
 
 # -----------------------------------------------------
-# 6. 사용자 입력 폼 및 드로잉 캔버스
+# 6. 사용자 입력 및 드로잉 캔버스 (st.form 제거)
 # -----------------------------------------------------
-with st.form("graph_analysis_form"):
-    st.header("1. 분석할 다항 함수")
-    st.latex(st.session_state.current_function_str)
+st.header("1. 분석할 다항 함수")
+st.latex(st.session_state.current_function_str)
 
-    st.subheader("2. 증감표 작성 (필수)")
-    sign_chart_data = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)", stroke_width=2, stroke_color="#000000",
-        background_image=SIGN_CHART_BG_IMAGE, height=150, width=700,
-        drawing_mode="freedraw", key="sign_chart_canvas"
-    )
+st.subheader("2. 증감표 작성 (필수)")
+sign_chart_data = st_canvas(
+    fill_color="rgba(255, 255, 255, 0)", stroke_width=2, stroke_color="#000000",
+    background_image=SIGN_CHART_BG_IMAGE, height=150, width=700,
+    drawing_mode="freedraw", key="sign_chart_canvas"
+)
 
-    st.subheader("3. 그래프 개형 그리기 (필수)")
-    graph_data = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)", stroke_width=3, stroke_color="#0000FF",
-        background_image=GRAPH_BG_IMAGE, height=400, width=700,
-        drawing_mode="freedraw", key="graph_canvas"
-    )
+st.subheader("3. 그래프 개형 그리기 (필수)")
+graph_data = st_canvas(
+    fill_color="rgba(255, 255, 255, 0)", stroke_width=3, stroke_color="#0000FF",
+    background_image=GRAPH_BG_IMAGE, height=400, width=700,
+    drawing_mode="freedraw", key="graph_canvas"
+)
 
-    submit_button = st.form_submit_button(label="✅ AI 피드백 요청하기")
+# st.form을 제거하고 일반 st.button을 사용합니다.
+submit_button = st.button(label="✅ AI 피드백 요청하기")
 
 # -----------------------------------------------------
 # 7. 피드백 로직
