@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import random
 from sympy import symbols, diff, solve, N, latex
 from streamlit_drawable_canvas import st_canvas
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
 # -----------------------------------------------------
@@ -73,12 +73,46 @@ if 'current_function_str' not in st.session_state:
     st.session_state.current_function_str, st.session_state.current_function_expr = generate_easy_polynomial(random.choice([3, 4]))
 
 # -----------------------------------------------------
-# 4. 이미지 데이터 변환 함수
+# 4. 이미지 데이터 변환 및 배경 생성 함수
 # -----------------------------------------------------
 def np_to_pil(img_array):
     if img_array is None or img_array.size == 0:
         return Image.new('RGB', (100, 30), color='white')
     return Image.fromarray(img_array.astype('uint8'), 'RGBA').convert('RGB')
+
+def create_sign_chart_background(width, height):
+    """증감표 배경 이미지를 생성합니다."""
+    img = Image.new("RGB", (width, height), "#FFFFFF")
+    draw = ImageDraw.Draw(img)
+    # Draw table lines
+    rows = 4
+    row_height = height / rows
+    for i in range(rows + 1):
+        draw.line([(0, i * row_height -1), (width, i * row_height-1)], fill="#D3D3D3", width=1)
+    # Draw text
+    try:
+        font = ImageFont.truetype("arial.ttf", 14)
+    except IOError:
+        font = ImageFont.load_default()
+    draw.text((10, 5), "x", fill="#000000", font=font)
+    draw.text((10, 5 + row_height), "f'(x)", fill="#000000", font=font)
+    draw.text((10, 5 + 2*row_height), "f(x)", fill="#000000", font=font)
+    return img
+
+def create_graph_background(width, height):
+    """좌표평면 배경 이미지를 생성합니다."""
+    img = Image.new("RGB", (width, height), "#FFFFFF")
+    draw = ImageDraw.Draw(img)
+    center_x, center_y = width // 2, height // 2
+    # Draw grid
+    for i in range(0, width, 25):
+        draw.line([(i, 0), (i, height)], fill="#F0F0F0", width=1)
+    for i in range(0, height, 25):
+        draw.line([(0, i), (width, i)], fill="#F0F0F0", width=1)
+    # Draw axes
+    draw.line([(0, center_y), (width, center_y)], fill="#000000", width=2)
+    draw.line([(center_x, 0), (center_x, height)], fill="#000000", width=2)
+    return img
 
 # -----------------------------------------------------
 # 5. UI 구조 변경: 사이드바 사용
@@ -93,18 +127,18 @@ with st.sidebar:
         st.rerun()
 
 # -----------------------------------------------------
-# 6. 사용자 입력 및 드로잉 캔버스 (오류 수정)
+# 6. 사용자 입력 및 드로잉 캔버스 (배경 생성)
 # -----------------------------------------------------
 st.header("1. 분석할 다항 함수")
 st.latex(st.session_state.current_function_str)
 
 st.subheader("2. 증감표 작성 (필수)")
-# 오류 방지를 위해 background_image 대신 background_color 사용
+sign_chart_bg = create_sign_chart_background(700, 150)
 sign_chart_data = st_canvas(
     fill_color="rgba(255, 255, 255, 0)",
     stroke_width=2,
     stroke_color="#000000",
-    background_color="#FFFFFF",
+    background_image=sign_chart_bg,
     height=150,
     width=700,
     drawing_mode="freedraw",
@@ -112,12 +146,12 @@ sign_chart_data = st_canvas(
 )
 
 st.subheader("3. 그래프 개형 그리기 (필수)")
-# 오류 방지를 위해 background_image 대신 background_color 사용
+graph_bg = create_graph_background(700, 400)
 graph_data = st_canvas(
     fill_color="rgba(255, 255, 255, 0)",
     stroke_width=3,
     stroke_color="#0000FF",
-    background_color="#FFFFFF",
+    background_image=graph_bg,
     height=400,
     width=700,
     drawing_mode="freedraw",
@@ -173,3 +207,4 @@ if submit_button:
         except Exception as e:
             st.error(f"API 호출 중 오류: {e}")
             st.session_state.feedback_count -= 1
+
