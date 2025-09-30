@@ -77,11 +77,12 @@ def np_to_pil(img_array):
     return Image.fromarray(img_array.astype('uint8'), 'RGBA').convert('RGB')
 
 # -----------------------------------------------------
-# 5. 사용자 입력 폼 및 드로잉 캔버스 (버튼 구조 수정)
+# 5. 사용자 입력 폼 및 드로잉 캔버스 (오류 수정)
 # -----------------------------------------------------
 try:
-    SIGN_CHART_BG_IMAGE = Image.open('sign_chart_background.png')
-    GRAPH_BG_IMAGE = Image.open('graph_background.png')
+    # 이미지를 불러온 후, .convert('RGB')를 통해 투명도 값을 제거하여 오류를 방지합니다.
+    SIGN_CHART_BG_IMAGE = Image.open('sign_chart_background.png').convert('RGB')
+    GRAPH_BG_IMAGE = Image.open('graph_background.png').convert('RGB')
 except FileNotFoundError:
     st.warning("배경 이미지 파일을 찾을 수 없어 빈 캔버스로 표시됩니다.")
     SIGN_CHART_BG_IMAGE = None
@@ -105,10 +106,8 @@ with st.form("graph_analysis_form"):
         drawing_mode="freedraw", key="graph_canvas"
     )
 
-    # st.form 안에는 st.form_submit_button만 있어야 합니다.
     submit_button = st.form_submit_button(label="✅ AI 피드백 요청하기")
 
-# "새로운 함수" 버튼은 form 밖에 배치하여 독립적으로 작동하게 합니다.
 if st.button("🔄 새로운 함수로 시작하기"):
     if 'current_function_str' in st.session_state:
         del st.session_state.current_function_str
@@ -117,7 +116,7 @@ if st.button("🔄 새로운 함수로 시작하기"):
     st.rerun()
 
 # -----------------------------------------------------
-# 7. 피드백 로직 (제출 버튼 클릭 시)
+# 7. 피드백 로직
 # -----------------------------------------------------
 if submit_button:
     if st.session_state.feedback_count >= MAX_DAILY_REQUESTS:
