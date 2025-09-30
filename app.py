@@ -8,24 +8,24 @@ from sympy import symbols, diff, solve, N
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
+import numpy as np
 
 # -----------------------------------------------------
 # 0. 설정 및 안전 장치
 # -----------------------------------------------------
-# ⚠️ 주의: 키가 노출되지 않도록 Secrets에 저장해야 합니다.
 MAX_DAILY_REQUESTS = 5 # 하루 최대 요청 횟수 (무료 한도 안전 장치)
+API_KEY = "AIzaSyAU1iwa-OFdgFyiookp8Rcwez6rlNXajm4" # 실제 키 입력
 
 # -----------------------------------------------------
 # 1. API 설정 및 모델 초기화
 # -----------------------------------------------------
-# API 키는 Secrets에서 가져옵니다. 
+# API 키는 Secrets 또는 코드에서 가져옵니다.
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-except KeyError:
-    # 로컬 테스트를 위해 임시 키를 입력할 수 있습니다. 배포 시에는 반드시 Secrets 사용!
-    api_key = "YOUR_GEMINI_API_KEY_HERE" 
+    api_key = st.secrets.get("GEMINI_API_KEY", API_KEY)
+except AttributeError:
+    api_key = API_KEY
 
-if not api_key or api_key == "YOUR_GEMINI_API_KEY_HERE":
+if not api_key:
     st.error("⚠️ API Key가 설정되지 않았습니다. Secrets에 GEMINI_API_KEY를 설정해주세요.")
     st.stop()
 
@@ -35,16 +35,37 @@ MODEL_NAME = 'gemini-2.5-flash'
 # -----------------------------------------------------
 # 2. 랜덤 함수 생성 로직
 # -----------------------------------------------------
+def format_sympy_expr(f_expr):
+    """SymPy 식을 LaTeX 형식으로 보기 좋게 변환합니다."""
+    f_str = str(f_expr).replace('**', '^').replace('*', '')
+    
+    # 계수 1 정리
+    f_str = f_str.replace('1x', 'x').replace('-1x', '-x')
+    
+    # 덧셈 부호 정리
+    f_str = f_str.replace('+ -', ' - ')
+    
+    # LaTeX 형식으로 최종 변환
+    f_str = f_str.replace('^', '^{') + '}'
+    f_str = f_str.replace('x^{', 'x^{')
+    
+    # 분수 처리 (예시로 단순화)
+    # 실제로는 더 복잡한 분수 처리가 필요할 수 있으나, 이 예시에서는 생략
+    
+    return f"f(x) = {f_str}"
+
 def generate_easy_polynomial(degree):
     """미분 시 인수분해가 쉬운 정수 계수 다항 함수를 생성합니다."""
     x = symbols('x')
     
+    # 3차 함수
     if degree == 3:
         roots = sorted(random.sample(range(-3, 4), 2))
         a_prime = random.choice([1, 2, -1, -2])
         f_prime_expr = 3 * a_prime * (x - roots[0]) * (x - roots[1])
         f_expr = f_prime_expr.integrate(x) + random.randint(-5, 5) 
         
+    # 4차 함수
     elif degree == 4:
         roots = sorted(random.sample(range(-2, 3), 3))
         a_prime = random.choice([1, -1]) 
@@ -54,12 +75,7 @@ def generate_easy_polynomial(degree):
     else:
         raise ValueError("3차 또는 4차 함수만 지원됩니다.")
 
-    f_str = str(f_expr).replace('**', '^').replace('*', '')
-    f_str = f_str.replace('1x', 'x').replace('-1x', '-x')
-    f_str = f_str.replace('-1x', '-x')
-    f_str = f_str.replace('+ -', ' - ') # 보기 좋게 정리
-    
-    return f"f(x) = {f_str}", f_expr
+    return format_sympy_expr(f_expr), f_expr
 
 # -----------------------------------------------------
 # 3. Streamlit 세션 및 UI 설정
@@ -71,7 +87,6 @@ if 'feedback_count' not in st.session_state:
 if 'last_reset_time' not in st.session_state:
     st.session_state.last_reset_time = datetime.now()
     
-# 24시간이 지났는지 확인하고 카운터 리셋
 if datetime.now() > st.session_state.last_reset_time + timedelta(hours=24):
     st.session_state.feedback_count = 0
     st.session_state.last_reset_time = datetime.now()
@@ -84,15 +99,13 @@ st.markdown(f"**현재 남은 요청 횟수: {MAX_DAILY_REQUESTS - st.session_st
 if 'current_function_str' not in st.session_state:
     st.session_state.current_function_str, st.session_state.current_function_expr = generate_easy_polynomial(random.choice([3, 4]))
 
-
 # -----------------------------------------------------
 # 4. 이미지 데이터 변환 함수 (Gemini API 전송용)
 # -----------------------------------------------------
 def np_to_bytes(img_array):
     """NumPy 배열 이미지를 PNG 바이트 데이터로 변환합니다."""
-    # 배열이 None이 아닌지 확인
-    if img_array is None:
-        # 빈 이미지를 생성하여 오류 방지
+    # 배열이 None이거나 비어있으면 빈 이미지를 생성하여 오류 방지
+    if img_array is None or img_array.size == 0:
         img_array = np.zeros((10, 10, 3), dtype=np.uint8) 
     
     # R, G, B 채널만 사용
@@ -107,50 +120,49 @@ def np_to_bytes(img_array):
 with st.form("graph_analysis_form"):
     
     st.header("1. 분석할 다항 함수")
-    st.markdown(f"### **{st.session_state.current_function_str}**")
+    # 1. 지수 표현 개선 (LaTeX 적용)
+    st.markdown(f"### **${st.session_state.current_function_str}$**") 
     
-    # 캔버스 높이/너비 설정
-    CANVAS_WIDTH = 700
-    CANVAS_HEIGHT_GRAPH = 400
-    CANVAS_HEIGHT_SIGN = 150
+    # -------------------------------------------------
+    # A. 증감표 그리기 유도 (Drawing Canvas 1) - 2번, 4번 반영
+    # -------------------------------------------------
+    st.subheader("2. 증감표 작성 (필수)")
+    st.markdown("아래 표에 증감표를 직접 작성해 주세요. (AI가 분석합니다.)")
     
-    col_chart, col_graph = st.columns(2)
+    # ⚠️ 증감표 배경 이미지 파일 경로 (GitHub에 'sign_chart_background.png' 업로드 필요)
+    SIGN_CHART_BG_IMAGE = 'sign_chart_background.png'
     
-    with col_chart:
-        # A. 증감표 그리기 유도 (Drawing Canvas 1)
-        st.subheader("2. 증감표 작성 (필수)")
-        st.markdown("**'x', 'f'(x)', 'f(x)'**를 첫 행에 적고, 3행 8열 형태로 증감표를 작성해 주세요.")
-        
-        # 증감표 영역 (흰색 배경)
-        sign_chart_data = st_canvas(
-            fill_color="#FFFFFF",
-            stroke_width=2,
-            stroke_color="#000000",
-            background_color="#FFFFFF",
-            height=CANVAS_HEIGHT_SIGN,
-            width=CANVAS_WIDTH,
-            drawing_mode="freedraw",
-            key="sign_chart_canvas"
-        )
+    sign_chart_data = st_canvas(
+        fill_color="#FFFFFF",
+        stroke_width=2,
+        stroke_color="#000000",
+        background_image=SIGN_CHART_BG_IMAGE, 
+        height=150,
+        width=700,
+        drawing_mode="freedraw",
+        key="sign_chart_canvas"
+    )
 
-    with col_graph:
-        # B. 그래프 그리기 (Drawing Canvas 2)
-        st.subheader("3. 그래프 개형 그리기 (필수)")
-        st.markdown("아래 **좌표평면 영역**에 그래프 개형을 그려주세요. (주요 절편, 극값 위치 표시)")
-        
-        # 그래프 영역 (좌표평면 배경이 없으므로, AI에게 이 영역이 좌표평면임을 명시해야 함)
-        graph_data = st_canvas(
-            fill_color="#FFFFFF",
-            stroke_width=3,
-            stroke_color="#000000",
-            background_image=None, 
-            background_color="#E0E0E0", # 연한 회색 배경으로 좌표평면 역할
-            height=CANVAS_HEIGHT_GRAPH,
-            width=CANVAS_WIDTH,
-            drawing_mode="freedraw",
-            key="graph_canvas"
-        )
-        
+    # -------------------------------------------------
+    # B. 그래프 그리기 (Drawing Canvas 2) - 3번, 4번 반영
+    # -------------------------------------------------
+    st.header("3. 그래프 개형 그리기 (필수)")
+    st.markdown("아래 **좌표평면**에 개형을 그려주세요. (AI가 좌표 인식을 시도합니다.)")
+    
+    # ⚠️ 좌표평면 배경 이미지 파일 경로 (GitHub에 'graph_background.png' 업로드 필요)
+    GRAPH_BG_IMAGE = 'graph_background.png'
+    
+    graph_data = st_canvas(
+        fill_color="#FFFFFF",
+        stroke_width=3,
+        stroke_color="#000000",
+        background_image=GRAPH_BG_IMAGE, 
+        height=400,
+        width=700,
+        drawing_mode="freedraw",
+        key="graph_canvas"
+    )
+
     col_submit, col_new = st.columns(2)
     
     with col_submit:
@@ -158,7 +170,6 @@ with st.form("graph_analysis_form"):
         
     with col_new:
         if st.form_submit_button(label="새로운 함수로 시작하기"):
-            # 세션에서 함수 정보 삭제 후 페이지 새로고침
             del st.session_state.current_function_str
             del st.session_state.current_function_expr
             st.experimental_rerun()
@@ -213,12 +224,13 @@ if submit_button:
 
     [당신의 피드백 원칙]
     1. **절대 정답 정보({SOLUTION_INFO})를 학생에게 직접 공개하지 마세요.**
-    2. **필수 4대 요소 분석 및 사고 유도 질문**: 다음 요소를 분석하고 오류 발견 시 바로 잡지 말고 질문을 던지세요.
-        a. **최고차항 계수**: 정답 정보와 그래프의 끝 모양(End Behavior)을 비교하여 오류 발견 시, "최고차항 부호에 따라 그래프의 양 끝이 어떻게 되는지 확인했나요?" 질문.
-        b. **Y절편**: 정답 정보와 그래프의 y축 교차점을 비교하여 오류 발견 시, "$x=0$일 때의 함숫값은 어디에 찍혀야 하나요?" 질문.
-        c. **극값**: 도함수의 근 개수와 학생 그래프의 극점 개수/위치를 비교하여 오류 발견 시, "도함수 $f'(x)$가 0이 되는 지점을 정확히 찾았고, 극점이 몇 개여야 할까요?" 질문.
+    2. **필수 4대 요소 분석 및 좌표 인식 강화**: 다음 요소를 분석하고 오류 발견 시 바로 잡지 말고 질문을 던지세요.
+        a. **최고차항 계수**: 정답 정보와 그래프의 끝 모양(End Behavior)을 비교하여 오류 발견 시, "최고차항 계수의 부호에 따라 그래프의 양 끝이 어떻게 되는지 확인했나요?" 질문.
+        b. **Y절편 (좌표 인식)**: 정답 Y절편({y_intercept})의 값과 그래프가 Y축과 만나는 지점의 **상대적 위치** (양수/음수/원점)를 비교하여 오류를 지적. 오류 발견 시, "$x=0$일 때의 함숫값은 어디에 찍혀야 하나요?" 질문.
+        c. **극값 (좌표 인식)**: 도함수의 근 개수와 학생 그래프의 극점 개수/위치를 비교하여 오류 발견 시, "도함수 $f'(x)$가 0이 되는 지점을 정확히 찾았고, 극점이 몇 개여야 할까요?" 질문.
         d. **증감표**: 학생이 그린 증감표 이미지와 실제 도함수의 부호 변화를 비교하여 오류 발견 시, "증감표의 부호와 그래프의 증가/감소 구간이 일치하는지 다시 확인해 보세요." 질문.
-    3. **칭찬 및 보강**: 그래프 개형이 거의 완벽하다면 "논리적으로 완벽해요!👏"라고 칭찬하고, 그 그래프의 특징을 추가로 설명해 주세요.
+    3. **사고 유도 질문**: 오류가 있다면 학생이 스스로 놓친 점을 찾도록 유도하는 **구체적 질문**을 던지세요. 질문은 최대 2개를 넘지 않도록 합니다.
+    4. **칭찬 및 보강**: 그래프 개형이 거의 완벽하다면 "논리적으로 완벽해요!👏"라고 칭찬하고, 그 그래프의 특징을 추가로 설명해 주세요.
     """
     
     # -----------------------------------------------------
