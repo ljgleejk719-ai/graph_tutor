@@ -1,0 +1,5 @@
+streamlit
+google-genai==0.1.0
+numpy
+sympy
+streamlit-drawable-canvas
