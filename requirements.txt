@@ -1,6 +1,6 @@
 streamlit
-google-genai==0.1.0
-numpy
+google-generativeai
 sympy
 streamlit-drawable-canvas
-Pillow 
+Pillow
+numpy
