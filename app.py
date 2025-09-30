@@ -77,7 +77,7 @@ def np_to_pil(img_array):
     return Image.fromarray(img_array.astype('uint8'), 'RGBA').convert('RGB')
 
 # -----------------------------------------------------
-# 5. 사용자 입력 폼 및 드로잉 캔버스 (오류 수정)
+# 5. 사용자 입력 폼 및 드로잉 캔버스 (버튼 구조 수정)
 # -----------------------------------------------------
 try:
     # 이미지를 불러온 후, .convert('RGB')를 통해 투명도 값을 제거하여 오류를 방지합니다.
@@ -87,6 +87,14 @@ except FileNotFoundError:
     st.warning("배경 이미지 파일을 찾을 수 없어 빈 캔버스로 표시됩니다.")
     SIGN_CHART_BG_IMAGE = None
     GRAPH_BG_IMAGE = None
+
+# "새로운 함수" 버튼을 form 바깥, 그리고 form 위로 이동하여 충돌을 방지합니다.
+if st.button("🔄 새로운 함수로 시작하기"):
+    if 'current_function_str' in st.session_state:
+        del st.session_state.current_function_str
+    if 'current_function_expr' in st.session_state:
+        del st.session_state.current_function_expr
+    st.rerun()
 
 with st.form("graph_analysis_form"):
     st.header("1. 분석할 다항 함수")
@@ -108,12 +116,6 @@ with st.form("graph_analysis_form"):
 
     submit_button = st.form_submit_button(label="✅ AI 피드백 요청하기")
 
-if st.button("🔄 새로운 함수로 시작하기"):
-    if 'current_function_str' in st.session_state:
-        del st.session_state.current_function_str
-    if 'current_function_expr' in st.session_state:
-        del st.session_state.current_function_expr
-    st.rerun()
 
 # -----------------------------------------------------
 # 7. 피드백 로직
@@ -162,3 +164,4 @@ if submit_button:
         except Exception as e:
             st.error(f"API 호출 중 오류: {e}")
             st.session_state.feedback_count -= 1
+
