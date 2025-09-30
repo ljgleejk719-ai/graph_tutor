@@ -14,14 +14,20 @@ import numpy as np
 MAX_DAILY_REQUESTS = 10
 
 # -----------------------------------------------------
-# 1. API 설정 및 모델 초기화
+# 1. API 설정 및 모델 초기화 (사용자 키 직접 적용)
 # -----------------------------------------------------
+# 사용자 요청에 따라 API 키를 코드에 직접 설정합니다.
+# 참고: 이 방식은 키가 코드에 노출되므로 보안상 권장되지 않습니다.
+API_KEY = "AIzaSyAU1iwa-OFdgFyiookp8Rcwez6rlNXajm4"
+
+if not API_KEY:
+    st.error("⚠️ API Key가 코드에 설정되지 않았습니다.")
+    st.stop()
+
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-except (KeyError, FileNotFoundError):
-    st.error("⚠️ API Key가 설정되지 않았습니다. Secrets에 GEMINI_API_KEY를 설정해주세요.")
-    st.info("앱 설정의 'Secrets'에 `GEMINI_API_KEY='your_api_key'` 형식으로 API 키를 추가해야 합니다.")
+    genai.configure(api_key=API_KEY)
+except Exception as e:
+    st.error(f"API 키 설정 중 오류가 발생했습니다: {e}")
     st.stop()
 
 MODEL_NAME = 'gemini-1.5-flash-latest'
@@ -77,10 +83,18 @@ def np_to_pil(img_array):
     return Image.fromarray(img_array.astype('uint8'), 'RGBA').convert('RGB')
 
 # -----------------------------------------------------
-# 5. 사용자 입력 폼 및 드로잉 캔버스 (버튼 구조 수정)
+# 5. UI 구조 변경: 사이드바 사용
 # -----------------------------------------------------
+with st.sidebar:
+    st.header("⚙️ 설정")
+    if st.button("🔄 새로운 함수로 시작하기"):
+        if 'current_function_str' in st.session_state:
+            del st.session_state.current_function_str
+        if 'current_function_expr' in st.session_state:
+            del st.session_state.current_function_expr
+        st.rerun()
+
 try:
-    # 이미지를 불러온 후, .convert('RGB')를 통해 투명도 값을 제거하여 오류를 방지합니다.
     SIGN_CHART_BG_IMAGE = Image.open('sign_chart_background.png').convert('RGB')
     GRAPH_BG_IMAGE = Image.open('graph_background.png').convert('RGB')
 except FileNotFoundError:
@@ -88,14 +102,9 @@ except FileNotFoundError:
     SIGN_CHART_BG_IMAGE = None
     GRAPH_BG_IMAGE = None
 
-# "새로운 함수" 버튼을 form 바깥, 그리고 form 위로 이동하여 충돌을 방지합니다.
-if st.button("🔄 새로운 함수로 시작하기"):
-    if 'current_function_str' in st.session_state:
-        del st.session_state.current_function_str
-    if 'current_function_expr' in st.session_state:
-        del st.session_state.current_function_expr
-    st.rerun()
-
+# -----------------------------------------------------
+# 6. 사용자 입력 폼 및 드로잉 캔버스
+# -----------------------------------------------------
 with st.form("graph_analysis_form"):
     st.header("1. 분석할 다항 함수")
     st.latex(st.session_state.current_function_str)
@@ -115,7 +124,6 @@ with st.form("graph_analysis_form"):
     )
 
     submit_button = st.form_submit_button(label="✅ AI 피드백 요청하기")
-
 
 # -----------------------------------------------------
 # 7. 피드백 로직
